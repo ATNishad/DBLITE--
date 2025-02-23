@@ -2,6 +2,8 @@
 #include <vector>
 #include<limits>
 #include <unordered_set>
+#include<unordered_map>
+#include<functional>
 
 std::unordered_set<std::string> SQL_KEYWORDS= {
     "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE",
@@ -100,18 +102,19 @@ class PARSER{
     } 
     
     void parser_fn(){
+        std::unordered_map<std::string, std::function<void()>>handler_umap = {
+            {"INSERT", std::bind(&PARSER::insert_parse,this)},
+            {"SELECT", std::bind(&PARSER::select_parse,this)},
+            {"UPDATE", std::bind(&PARSER::update_parse,this)},
+            {"DELETE", std::bind(&PARSER::delete_parse,this)},
+        };
 
-        if(_t_v[_pos].word == "INSERT" && _t_v[_pos].tk_type == TOKENTYPE::KEYWORD ){
-            insert_parse();
+        auto itr = handler_umap.find(_t_v[_pos].word);
+        if(itr != handler_umap.end()){
+            itr->second();
         }
-        else if(_t_v[_pos].word == "SELECT" && _t_v[_pos].tk_type == TOKENTYPE::KEYWORD ){
-            select_parse();
-        }
-        else if(_t_v[_pos].word == "UPDATE" && _t_v[_pos].tk_type == TOKENTYPE::KEYWORD ){
-            update_parse();
-        }
-        else if(_t_v[_pos].word == "DELETE" && _t_v[_pos].tk_type == TOKENTYPE::KEYWORD ){
-            delete_parse();
+        else{
+            throw std::runtime_error("Unkown query");
         }
 
     }
