@@ -10,6 +10,7 @@ std::unordered_set<std::string> SQL_KEYWORD_SET= {
     "VALUES", "INTO", "CREATE", "DROP", "TABLE"
 };
 
+
 typedef enum class TKTYP{
     KEYWORD,
     IDENTIFIER,
@@ -286,17 +287,14 @@ class PARSER{
             }
             _pos++;
 
-            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER ||
-                 _token_vec[_pos].tk_type != TOKENTYPE::STRING ||
+            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER &&
+                 _token_vec[_pos].tk_type != TOKENTYPE::STRING &&
                  _token_vec[_pos].tk_type != TOKENTYPE::NUMBER ){
+                     throw std::runtime_error("SYNTAX ERROR : expected value after = ");
+                    }
                     update_query.updates[column] = _token_vec[_pos].word;
                     _pos++;
-                 }
-
-             else{
-                    throw std::runtime_error("SYNTAX ERROR : expected value after = ");
-                 }
-                
+                                    
             if(_token_vec[_pos].word == ","){
                 _pos++;
                 continue;
@@ -328,7 +326,36 @@ class PARSER{
     }
 
     void delete_parse(){
+        if(_token_vec[_pos].word != "DELETE"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'DELETE' ");
+        }
+        _pos++;
+        S_DELETE_QUERY delete_query;
 
+        if(_token_vec[_pos].word != "FROM"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'FROM' ");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER ){
+            throw std::runtime_error("SYNTAX ERROR : expected table name");
+        }
+        delete_query.tablename = _token_vec[_pos].word;
+        _pos++;
+
+        
+        if (_token_vec[_pos].word == "WHERE"){
+            _pos++;
+            while(_token_vec[_pos].word != ";" && _pos< _token_vec.size()){
+                delete_query.condition += _token_vec[_pos].word;
+                delete_query.condition += " ";
+                _pos++;
+            }
+        }
+        else if(_token_vec[_pos].word == ";"){
+            _pos++;
+        }
+        std::cout<<"DELETE query parsed \n";
     }
 };
 
