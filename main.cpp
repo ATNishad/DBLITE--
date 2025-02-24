@@ -167,22 +167,21 @@ class PARSER{
 
         while(_pos < _token_vec.size() && _token_vec[_pos].word != ")"){
             
-            if( _token_vec[_pos].word != ","){
-                _pos++;
-                continue;
-            }
-
             if(_token_vec[_pos].tk_type == TOKENTYPE::STRING ||
             _token_vec[_pos].tk_type == TOKENTYPE::NUMBER || 
             _token_vec[_pos].tk_type == TOKENTYPE::IDENTIFIER)
             {
-            insert_query.values.push_back(_token_vec[_pos].word);        
+            insert_query.values.push_back(_token_vec[_pos].word);  
+            _pos++;      
+            }
+
+            else if( _token_vec[_pos].word == ","){
+                _pos++;
             }
 
             else{
                 throw std::runtime_error("SYNTAX ERROR : unexpected token in values");
             }
-            _pos++;
         
         }
 
@@ -195,7 +194,7 @@ class PARSER{
             throw std::runtime_error("SYNTAX ERROR : expected ';' ");
         }
         _pos++;
-
+        std::cout<<"INSERT PARSE SUCCESSFUL";
     }
      
     void select_parse(){
@@ -251,10 +250,80 @@ class PARSER{
             throw std::runtime_error("SYNTAX ERROR : expected ';' ");
         }
         _pos++;
+        std::cout<<"SELECT PARSE SUCCESSFUL";
 
     }
 
     void update_parse(){
+        if(_token_vec[_pos].word != "UPDATE"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'UPDATE' ");
+        }
+
+        _pos++;
+        S_UPDATE_QUERY update_query;
+
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+            throw std::runtime_error("SYNTAX ERROR : expected tablename");
+        }
+        update_query.tablename = _token_vec[_pos].word;
+        _pos++;
+
+        if(_token_vec[_pos].word != "SET"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'SET' ");
+        }
+        _pos++;
+
+        while(_pos < _token_vec.size() && _token_vec[_pos].word != "WHERE" && _token_vec[_pos].word != ";"){
+            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+                throw std::runtime_error("SYNTAX ERROR : expected column name");
+            }
+
+            std::string column = _token_vec[_pos].word;
+            _pos++;
+
+            if(_token_vec[_pos].word != "="){
+                throw std::runtime_error("SYNTAX ERROR : expected =");
+            }
+            _pos++;
+
+            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER ||
+                 _token_vec[_pos].tk_type != TOKENTYPE::STRING ||
+                 _token_vec[_pos].tk_type != TOKENTYPE::NUMBER ){
+                    update_query.updates[column] = _token_vec[_pos].word;
+                    _pos++;
+                 }
+
+             else{
+                    throw std::runtime_error("SYNTAX ERROR : expected value after = ");
+                 }
+                
+            if(_token_vec[_pos].word == ","){
+                _pos++;
+                continue;
+            }
+
+            else if(_token_vec[_pos].word == "WHERE" || _token_vec[_pos].word == ";"){
+                break;
+            }
+            else{
+                throw std::runtime_error("SYNTAX ERROR : expected token in SET");
+            }
+        }
+
+        if(_token_vec[_pos].word == "WHERE"){
+            _pos++;
+            while(_pos< _token_vec.size() && _token_vec[_pos].word != ";"){
+                update_query.condition += _token_vec[_pos].word + " ";
+                _pos++;
+            }
+            update_query.condition = update_query.condition.substr(0,update_query.condition.size()-1);
+        }
+
+        if(_token_vec[_pos].word != ";"){
+            throw std::runtime_error("SYNTAX ERROR : expected ';' at end");
+        }
+        _pos++;
+        std::cout<<"UPDATE PARSE SUCCESSFUL";
 
     }
 
