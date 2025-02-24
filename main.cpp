@@ -5,7 +5,7 @@
 #include<unordered_map>
 #include<functional>
 
-std::unordered_set<std::string> SQL_KEYWORDS= {
+std::unordered_set<std::string> SQL_KEYWORD_SET= {
     "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE",
     "VALUES", "INTO", "CREATE", "DROP", "TABLE"
 };
@@ -24,11 +24,29 @@ typedef struct{
     std::string word;
 }TOKEN;
 
+struct BASE_QUERY_S{
+    std::string tablename;
+    virtual ~BASE_QUERY_S() {} 
+};
 
-typedef struct{
-    std::string table_name;
-    std::string values;
-}S_INSERT_QUERY;
+struct S_INSERT_QUERY : public BASE_QUERY_S{
+    std::vector<std::string> values;
+};
+
+struct S_SELECT_QUERY : public BASE_QUERY_S{
+    std::vector<std::string> columns;
+    std::string condition;
+};
+
+struct S_UPDATE_QUERY : public BASE_QUERY_S{
+    std::unordered_map<std::string , std::string> updates;
+    std::string condition;
+};
+
+struct S_DELETE_QUERY : public BASE_QUERY_S{
+    std::string condition;
+};
+
 
 
 class TOKENIZER{
@@ -60,7 +78,7 @@ class TOKENIZER{
                     word += _query[_pos++];
                 }
 
-                TOKENTYPE type = (SQL_KEYWORDS.count(word) > 0) ? TOKENTYPE::KEYWORD : TOKENTYPE::IDENTIFIER;
+                TOKENTYPE type = (SQL_KEYWORD_SET.count(word) > 0) ? TOKENTYPE::KEYWORD : TOKENTYPE::IDENTIFIER;
                 _token_vec.push_back({type, word});
             }
 
@@ -93,11 +111,10 @@ class TOKENIZER{
 class PARSER{
     private:
     size_t _pos=0;
-    S_INSERT_QUERY insert_query;
-    std::vector<TOKEN> _t_v;
+    std::vector<TOKEN> _token_vec;
 
     public:
-    PARSER(std::vector<TOKEN> temp ) : _t_v(temp){
+    PARSER(std::vector<TOKEN> temp ) : _token_vec(temp){
         parser_fn();
     } 
     
@@ -109,7 +126,7 @@ class PARSER{
             {"DELETE", std::bind(&PARSER::delete_parse,this)},
         };
 
-        auto itr = handler_umap.find(_t_v[_pos].word);
+        auto itr = handler_umap.find(_token_vec[_pos].word);
         if(itr != handler_umap.end()){
             itr->second();
         }
@@ -120,53 +137,121 @@ class PARSER{
     }
 
     void insert_parse(){
-        if(_t_v[_pos].word != "INSERT"){
+        if(_token_vec[_pos].word != "INSERT"){
             throw std::runtime_error("SYNTAX ERROR : expected 'INSERT' ");
         }
         _pos++;
+        S_INSERT_QUERY insert_query;    //query object here
 
-        if(_t_v[_pos].word != "INTO"){
+        if(_token_vec[_pos].word != "INTO"){
             throw std::runtime_error("SYNTAX ERROR : expected 'INTO' ");
         }
         _pos++;
 
-        if(_t_v[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
             throw std::runtime_error("SYNTAX ERROR : expected table name ");
 
         }
-        insert_query.table_name = _t_v[_pos].word;
+        insert_query.tablename = _token_vec[_pos].word;
         _pos++;
 
-        if(_t_v[_pos].word != "VALUES"){
+        if(_token_vec[_pos].word != "VALUES"){
             throw std::runtime_error("SYNTAX ERROR : expected 'VALUES' ");
         }
         _pos++;
 
-        if(_t_v[_pos].word != "("){
+        if(_token_vec[_pos].word != "("){
             throw std::runtime_error("SYNTAX ERROR : expected '(' ");
         }
         _pos++;
 
-        std::string values;
-        while(_pos < _t_v.size() && _t_v[_pos].word != ")"){
-            values += _t_v[_pos].word;
+        while(_pos < _token_vec.size() && _token_vec[_pos].word != ")"){
+            
+            if( _token_vec[_pos].word != ","){
+                _pos++;
+                continue;
+            }
+
+            if(_token_vec[_pos].tk_type == TOKENTYPE::STRING ||
+            _token_vec[_pos].tk_type == TOKENTYPE::NUMBER || 
+            _token_vec[_pos].tk_type == TOKENTYPE::IDENTIFIER)
+            {
+            insert_query.values.push_back(_token_vec[_pos].word);        
+            }
+
+            else{
+                throw std::runtime_error("SYNTAX ERROR : unexpected token in values");
+            }
             _pos++;
+        
         }
 
-        if(_t_v[_pos].word != ")"){
+        if(_token_vec[_pos].word != ")"){
             throw std::runtime_error("SYNTAX ERROR : expected ')' ");
         }
         _pos++;
 
-        if(_t_v[_pos].word != ";"){
+        if(_token_vec[_pos].word != ";"){
             throw std::runtime_error("SYNTAX ERROR : expected ';' ");
         }
         _pos++;
 
-        insert_query.values = values;        
     }
      
     void select_parse(){
+        if(_token_vec[_pos].word != "SELECT"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'SELECT' ");
+        }
+        S_SELECT_QUERY select_query;   //query object here
+        _pos++;
+
+        if(_token_vec[_pos].word == "*"){
+            select_query.columns.push_back("*");
+            _pos++;
+        }
+        else{
+            while(_token_vec[_pos].tk_type == TOKENTYPE::IDENTIFIER){
+                select_query.columns.push_back(_token_vec[_pos].word);
+                _pos++;
+
+                if(_token_vec[_pos].word == ","){
+                    _pos++;
+                    continue;
+                }
+                else{
+                    break;
+                }
+            }
+        }
+        
+        if(_token_vec[_pos].word != "FROM"){
+            throw std::runtime_error("SYNTAX ERROR : expected 'FROM' ");
+        }
+        _pos++;
+        
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+            throw std::runtime_error("SYNTAX ERROR : expected table name ");
+        }
+        select_query.tablename = _token_vec[_pos].word;
+        _pos++;
+
+        if(_token_vec[_pos].word == "WHERE"){
+            _pos++;
+
+            while(_pos < _token_vec.size() && _token_vec[_pos].word != ";"){
+                if(!select_query.condition.empty()){
+                    select_query.condition += " "; 
+                select_query.condition += _token_vec[_pos].word;
+                _pos++;
+            }
+        }
+        }
+
+        if(_token_vec[_pos].word != ";"){
+            throw std::runtime_error("SYNTAX ERROR : expected ';' ");
+        }
+        _pos++;
+
     }
 
     void update_parse(){
