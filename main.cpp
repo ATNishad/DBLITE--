@@ -34,6 +34,9 @@ struct S_CREATE_QUERY : public BASE_QUERY_S{
     std::vector<std::pair<std::string,std::string>> column_name_type {};
 };
 
+struct S_DROP_QUERY : public BASE_QUERY_S{
+};
+
 struct S_INSERT_QUERY : public BASE_QUERY_S{
     std::vector<std::string> values;
 };
@@ -125,6 +128,7 @@ class PARSER{
     void parser_fn(){
         std::unordered_map<std::string, std::function<void()>>handler_umap = {
             {"CREATE", std::bind(&PARSER::create_parse,this)},
+            {"DROP"  , std::bind(&PARSER::drop_parse,this)},
             {"INSERT", std::bind(&PARSER::insert_parse,this)},
             {"SELECT", std::bind(&PARSER::select_parse,this)},
             {"UPDATE", std::bind(&PARSER::update_parse,this)},
@@ -143,19 +147,19 @@ class PARSER{
 
     void create_parse(){
         if(_token_vec[_pos].word != "CREATE"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'CREATE' ");
+            throw std::invalid_argument("syntax error : expected 'CREATE' ");
         }
         _pos++;
 
         if(_token_vec[_pos].word != "TABLE"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'TABLE' ");
+            throw std::invalid_argument("syntax error : expected 'TABLE' ");
         }
         _pos++;
 
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
             throw std::invalid_argument("SYNTAX ARGUMENT : expected tablename ");
         }
-        S_CREATE_QUERY create_query;
+        S_CREATE_QUERY create_query;        //query object here!!!
         create_query.tablename = _token_vec[_pos].word;
         _pos++;
 
@@ -167,7 +171,7 @@ class PARSER{
 
 
         if(_token_vec[_pos].word != "("){
-            throw std::invalid_argument("SYNTAX ERROR : expected '(' ");
+            throw std::invalid_argument("syntax error : expected '(' ");
         }
         _pos++;
 
@@ -181,12 +185,12 @@ class PARSER{
             _pos++;
 
             if(_token_vec[_pos].word != ":"){
-                throw std::invalid_argument("SYNTAX ERROR : expected ':' ");
+                throw std::invalid_argument("syntax error : expected ':' ");
             }
             _pos++;
 
             if(_token_vec[_pos].word != "STRING" && _token_vec[_pos].word != "NUMBER" ){
-                throw std::invalid_argument("SYNTAX ERROR : expected column type ");
+                throw std::invalid_argument("syntax error : expected column type ");
                 }
                 
 
@@ -199,51 +203,76 @@ class PARSER{
                 _pos++;
             }
             else if(_token_vec[_pos].word != ")" ){
-                throw std::invalid_argument("SYNTAX ERROR : expected ') or ,' ");
+                throw std::invalid_argument("syntax error : expected ') or ,' ");
             }
 
         }
         if(_token_vec[_pos].word != ")"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ')' ");
+            throw std::invalid_argument("syntax error : expected ')' ");
         }
         _pos++;
 
         if(_pos >= _token_vec.size() || _token_vec[_pos].word != ";"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ';' ");
+            throw std::invalid_argument("syntax error : expected ';' ");
         }
 
         _pos++;
         std::cout<<"CREATE QUERY PARSED";
+
     }
+
+    void drop_parse(){
+        if(_token_vec[_pos].word != "DROP"){
+            throw std::invalid_argument("syntax error : expected 'DROP' ");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].word != "TABLE"){
+            throw std::invalid_argument("syntax error : expected 'TABLE' ");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+            throw std::invalid_argument("syntax error : expected tablename");
+        }
+        S_DROP_QUERY drop_query;
+        drop_query.tablename = _token_vec[_pos].word;
+        _pos++;
+
+        if(_token_vec[_pos].word != ";"){
+            throw std::invalid_argument("syntax error : expected ;");
+        }
+        _pos++;
+        }
         
     
 
     void insert_parse(){
         if(_token_vec[_pos].word != "INSERT"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'INSERT' ");
+            throw std::invalid_argument("syntax error : expected 'INSERT' ");
         }
         _pos++;
-        S_INSERT_QUERY insert_query;    //query object here
+        S_INSERT_QUERY insert_query;    //query object here!!!
 
         if(_token_vec[_pos].word != "INTO"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'INTO' ");
+            throw std::invalid_argument("syntax error : expected 'INTO' ");
         }
         _pos++;
 
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-            throw std::invalid_argument("SYNTAX ERROR : expected table name ");
+            throw std::invalid_argument("syntax error : expected table name ");
 
         }
         insert_query.tablename = _token_vec[_pos].word;
         _pos++;
 
         if(_token_vec[_pos].word != "VALUES"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'VALUES' ");
+            throw std::invalid_argument("syntax error : expected 'VALUES' ");
         }
         _pos++;
 
         if(_token_vec[_pos].word != "("){
-            throw std::invalid_argument("SYNTAX ERROR : expected '(' ");
+            throw std::invalid_argument("syntax error : expected '(' ");
         }
         _pos++;
 
@@ -262,18 +291,18 @@ class PARSER{
             }
 
             else{
-                throw std::invalid_argument("SYNTAX ERROR : unexpected token in values");
+                throw std::invalid_argument("syntax error : unexpected token in values");
             }
         
         }
 
         if(_token_vec[_pos].word != ")"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ')' ");
+            throw std::invalid_argument("syntax error : expected ')' ");
         }
         _pos++;
 
         if(_token_vec[_pos].word != ";"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ';' ");
+            throw std::invalid_argument("syntax error : expected ';' ");
         }
         _pos++;
         std::cout<<"INSERT PARSE SUCCESSFUL";
@@ -281,7 +310,7 @@ class PARSER{
      
     void select_parse(){
         if(_token_vec[_pos].word != "SELECT"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'SELECT' ");
+            throw std::invalid_argument("syntax error : expected 'SELECT' ");
         }
         S_SELECT_QUERY select_query;   //query object here
         _pos++;
@@ -306,12 +335,12 @@ class PARSER{
         }
         
         if(_token_vec[_pos].word != "FROM"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'FROM' ");
+            throw std::invalid_argument("syntax error : expected 'FROM' ");
         }
         _pos++;
         
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-            throw std::invalid_argument("SYNTAX ERROR : expected table name ");
+            throw std::invalid_argument("syntax error : expected table name ");
         }
         select_query.tablename = _token_vec[_pos].word;
         _pos++;
@@ -329,7 +358,7 @@ class PARSER{
         }
 
         if(_token_vec[_pos].word != ";"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ';' ");
+            throw std::invalid_argument("syntax error : expected ';' ");
         }
         _pos++;
         std::cout<<"SELECT PARSE SUCCESSFUL";
@@ -338,40 +367,40 @@ class PARSER{
 
     void update_parse(){
         if(_token_vec[_pos].word != "UPDATE"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'UPDATE' ");
+            throw std::invalid_argument("syntax error : expected 'UPDATE' ");
         }
 
         _pos++;
-        S_UPDATE_QUERY update_query;
+        S_UPDATE_QUERY update_query;    //query object here!!!
 
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-            throw std::invalid_argument("SYNTAX ERROR : expected tablename");
+            throw std::invalid_argument("syntax error : expected tablename");
         }
         update_query.tablename = _token_vec[_pos].word;
         _pos++;
 
         if(_token_vec[_pos].word != "SET"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'SET' ");
+            throw std::invalid_argument("syntax error : expected 'SET' ");
         }
         _pos++;
 
         while(_pos < _token_vec.size() && _token_vec[_pos].word != "WHERE" && _token_vec[_pos].word != ";"){
             if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-                throw std::invalid_argument("SYNTAX ERROR : expected column name");
+                throw std::invalid_argument("syntax error : expected column name");
             }
 
             std::string column = _token_vec[_pos].word;
             _pos++;
 
             if(_token_vec[_pos].word != "="){
-                throw std::invalid_argument("SYNTAX ERROR : expected =");
+                throw std::invalid_argument("syntax error : expected =");
             }
             _pos++;
 
             if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER &&
                  _token_vec[_pos].tk_type != TOKENTYPE::STRING &&
                  _token_vec[_pos].tk_type != TOKENTYPE::NUMBER ){
-                     throw std::invalid_argument("SYNTAX ERROR : expected value after = ");
+                     throw std::invalid_argument("syntax error : expected value after = ");
                     }
                     update_query.updates[column] = _token_vec[_pos].word;
                     _pos++;
@@ -385,7 +414,7 @@ class PARSER{
                 break;
             }
             else{
-                throw std::invalid_argument("SYNTAX ERROR : expected token in SET");
+                throw std::invalid_argument("syntax error : expected token in SET");
             }
         }
 
@@ -399,7 +428,7 @@ class PARSER{
         }
 
         if(_token_vec[_pos].word != ";"){
-            throw std::invalid_argument("SYNTAX ERROR : expected ';' at end");
+            throw std::invalid_argument("syntax error : expected ';' at end");
         }
         _pos++;
         std::cout<<"UPDATE PARSE SUCCESSFUL";
@@ -408,18 +437,18 @@ class PARSER{
 
     void delete_parse(){
         if(_token_vec[_pos].word != "DELETE"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'DELETE' ");
+            throw std::invalid_argument("syntax error : expected 'DELETE' ");
         }
         _pos++;
-        S_DELETE_QUERY delete_query;
+        S_DELETE_QUERY delete_query;        //query object here!!!
 
         if(_token_vec[_pos].word != "FROM"){
-            throw std::invalid_argument("SYNTAX ERROR : expected 'FROM' ");
+            throw std::invalid_argument("syntax error : expected 'FROM' ");
         }
         _pos++;
 
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER ){
-            throw std::invalid_argument("SYNTAX ERROR : expected table name");
+            throw std::invalid_argument("syntax error : expected table name");
         }
         delete_query.tablename = _token_vec[_pos].word;
         _pos++;
