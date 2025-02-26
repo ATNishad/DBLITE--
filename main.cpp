@@ -31,7 +31,7 @@ struct BASE_QUERY_S{
 };
 
 struct S_CREATE_QUERY : public BASE_QUERY_S{
-    std::vector<std::pair<std::string,std::string>> column_name_type;
+    std::vector<std::pair<std::string,std::string>> column_name_type {};
 };
 
 struct S_INSERT_QUERY : public BASE_QUERY_S{
@@ -124,6 +124,7 @@ class PARSER{
     
     void parser_fn(){
         std::unordered_map<std::string, std::function<void()>>handler_umap = {
+            {"CREATE", std::bind(&PARSER::create_parse,this)},
             {"INSERT", std::bind(&PARSER::insert_parse,this)},
             {"SELECT", std::bind(&PARSER::select_parse,this)},
             {"UPDATE", std::bind(&PARSER::update_parse,this)},
@@ -158,19 +159,64 @@ class PARSER{
         create_query.tablename = _token_vec[_pos].word;
         _pos++;
 
+        if(_token_vec[_pos].word != "COLUMNS"){
+            throw std::invalid_argument("SYNTAX ARGUMENT : expected 'COLUMNS' ");
+        }
+        _pos++;
+        
+
+
         if(_token_vec[_pos].word != "("){
             throw std::invalid_argument("SYNTAX ERROR : expected '(' ");
         }
         _pos++;
 
         while(_pos< _token_vec.size() && _token_vec[_pos].word != ")" ){
-    
-            //parse col1 TYPE, col2 TYPE
+            
+
+            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+                throw std::invalid_argument("SYNATX ERROR : expected column name ");
+            }
+            std::string col = _token_vec[_pos].word;
+            _pos++;
+
+            if(_token_vec[_pos].word != ":"){
+                throw std::invalid_argument("SYNTAX ERROR : expected ':' ");
+            }
+            _pos++;
+
+            if(_token_vec[_pos].word != "STRING" && _token_vec[_pos].word != "NUMBER" ){
+                throw std::invalid_argument("SYNTAX ERROR : expected column type ");
+                }
+                
+
+            std::string type = _token_vec[_pos].word;
+            _pos++; 
+
+            create_query.column_name_type.push_back({col,type});
+
+            if(_token_vec[_pos].word == ","){
+                _pos++;
+            }
+            else if(_token_vec[_pos].word != ")" ){
+                throw std::invalid_argument("SYNTAX ERROR : expected ') or ,' ");
+            }
+
+        }
+        if(_token_vec[_pos].word != ")"){
+            throw std::invalid_argument("SYNTAX ERROR : expected ')' ");
+        }
+        _pos++;
+
+        if(_pos >= _token_vec.size() || _token_vec[_pos].word != ";"){
+            throw std::invalid_argument("SYNTAX ERROR : expected ';' ");
         }
 
-        
-
+        _pos++;
+        std::cout<<"CREATE QUERY PARSED";
     }
+        
+    
 
     void insert_parse(){
         if(_token_vec[_pos].word != "INSERT"){
