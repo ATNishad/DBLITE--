@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include<unordered_map>
 #include<functional>
+#include<memory>
 
 std::unordered_set<std::string> SQL_KEYWORD_SET= {
     "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE",
@@ -54,6 +55,7 @@ struct S_UPDATE_QUERY : public BASE_QUERY_S{
 struct S_DELETE_QUERY : public BASE_QUERY_S{
     std::string condition;
 };
+
 
 
 class TOKENIZER{
@@ -119,12 +121,13 @@ class PARSER{
     private:
     size_t _pos=0;
     std::vector<TOKEN> _token_vec;
+    std::unique_ptr<BASE_QUERY_S> query_ptr;
 
     public:
     PARSER(std::vector<TOKEN> temp ) : _token_vec(temp){
         parser_fn();
     } 
-    
+
     void parser_fn(){
         std::unordered_map<std::string, std::function<void()>>handler_umap = {
             {"CREATE", std::bind(&PARSER::create_parse,this)},
@@ -145,6 +148,10 @@ class PARSER{
 
     }
 
+    std::unique_ptr<BASE_QUERY_S> get_parsed_query(){
+        return std::move(query_ptr);
+    }
+
     void create_parse(){
         if(_token_vec[_pos].word != "CREATE"){
             throw std::invalid_argument("syntax error : expected 'CREATE' ");
@@ -159,16 +166,10 @@ class PARSER{
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
             throw std::invalid_argument("SYNTAX ARGUMENT : expected tablename ");
         }
-        S_CREATE_QUERY create_query;        //query object here!!!
-        create_query.tablename = _token_vec[_pos].word;
-        _pos++;
-
-        if(_token_vec[_pos].word != "COLUMNS"){
-            throw std::invalid_argument("SYNTAX ARGUMENT : expected 'COLUMNS' ");
-        }
+        auto create_query = std::make_unique<S_CREATE_QUERY>();        //query object here!!!
+        create_query->tablename = _token_vec[_pos].word;
         _pos++;
         
-
 
         if(_token_vec[_pos].word != "("){
             throw std::invalid_argument("syntax error : expected '(' ");
@@ -179,7 +180,7 @@ class PARSER{
             
 
             if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-                throw std::invalid_argument("SYNATX ERROR : expected column name ");
+                throw std::invalid_argument("syntax error : expected column name ");
             }
             std::string col = _token_vec[_pos].word;
             _pos++;
@@ -190,6 +191,7 @@ class PARSER{
             _pos++;
 
             if(_token_vec[_pos].word != "STRING" && _token_vec[_pos].word != "NUMBER" ){
+
                 throw std::invalid_argument("syntax error : expected column type ");
                 }
                 
@@ -197,7 +199,7 @@ class PARSER{
             std::string type = _token_vec[_pos].word;
             _pos++; 
 
-            create_query.column_name_type.push_back({col,type});
+            create_query->column_name_type.push_back({col,type});
 
             if(_token_vec[_pos].word == ","){
                 _pos++;
@@ -217,8 +219,8 @@ class PARSER{
         }
 
         _pos++;
-        std::cout<<"CREATE QUERY PARSED";
-
+        query_ptr = std::move(create_query);
+        std::cout<<"Creat query parsed\n";
     }
 
     void drop_parse(){
@@ -235,18 +237,19 @@ class PARSER{
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
             throw std::invalid_argument("syntax error : expected tablename");
         }
-        S_DROP_QUERY drop_query;
-        drop_query.tablename = _token_vec[_pos].word;
+        auto drop_query = std::make_unique<S_DROP_QUERY>();
+        drop_query->tablename = _token_vec[_pos].word;
         _pos++;
 
         if(_token_vec[_pos].word != ";"){
             throw std::invalid_argument("syntax error : expected ;");
         }
         _pos++;
+
+        query_ptr = std::move(drop_query);
+        std::cout<<"Drop query parsed\n";
         }
         
-    
-
     void insert_parse(){
         if(_token_vec[_pos].word != "INSERT"){
             throw std::invalid_argument("syntax error : expected 'INSERT' ");
@@ -470,19 +473,83 @@ class PARSER{
 };
 
 
+class DATABASE{
+    private:
+    struct TABLE{
+        std::vector<std::string> columns;
+        std::vector<std::unordered_map<std::string,std::string>> rows;
+    };
+
+    std::unordered_map<std::string,TABLE> tables;
+
+    public:
+
+    void execute_create(const S_CREATE_QUERY& create_query){
+        if(tables.find(create_query.tablename)!= tables.end()){
+            std::cout<<"Error : Table "<<create_query.tablename<<" already exists \n";
+            return;
+        }
+
+        TABLE newtable;
+        for(const auto& col_type : create_query.column_name_type){
+            newtable.columns.push_back(col_type.first);
+        }
+
+        newtable.rows = {};
+
+        tables[create_query.tablename] = newtable;
+        std::cout<<"Table "<<create_query.tablename<<" has been created successfully \n";
+    }
+
+    void execute_drop(const S_DROP_QUERY& drop_query){
+        if(tables.find(drop_query.tablename) == tables.end()){
+            std::cout<<"Table "<<drop_query.tablename<<" doesnt exist \n";        
+            return;    
+        }
+
+        else{
+            tables.erase(tables.find(drop_query.tablename));
+            std::cout<<"Table "<<drop_query.tablename<<" has been dropped successfully \n";
+        }
+
+    }
+
+    void execute_insert(){}
+
+    void execute_update(){}
+
+    void execute_select(){}
+
+    void execute_delete(){}
+
+};
+
 class QUERY_ENGINE{
     private:
     std::string query;
+    DATABASE &db;
+
 
     public:
-    QUERY_ENGINE(std::string temp) : query(temp){
+    QUERY_ENGINE(std::string temp, DATABASE& dtemp) : query(temp) , db(dtemp){
         TOKENIZER tk_obj(query);
         PARSER pars_obj(tk_obj.get_token_vec());
+        auto parsed_query = pars_obj.get_parsed_query();
+        if(parsed_query){
+            if(S_CREATE_QUERY* create_query = dynamic_cast<S_CREATE_QUERY*>(parsed_query.get())){
+                db.execute_create(*create_query);
+            }
+            if(S_DROP_QUERY* drop_query = dynamic_cast<S_DROP_QUERY*>(parsed_query.get())){
+                db.execute_drop(*drop_query);
+            }
+        }
     }
 };
 
 int main(){
     std::string query;
+    DATABASE db;
+
     while(true){
         std::cout<<"dbl>";
         std::cout.flush();
@@ -495,8 +562,9 @@ int main(){
 
         else{
             try{
-            QUERY_ENGINE QE(query);
+            QUERY_ENGINE QE(query,db);
             }
+
             catch(const std::exception& e){
                 std::cout<<"Error:"<<e.what()<<"\n";
                 std::cin.clear();
