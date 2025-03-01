@@ -51,7 +51,7 @@ struct S_UPDATE_QUERY : public BASE_QUERY_S{
 };
 
 struct S_DELETE_QUERY : public BASE_QUERY_S{
-    std::string condition;
+    size_t index_condition;
 };
 
 
@@ -342,7 +342,6 @@ class PARSER{
         if(_token_vec[_pos].word != "UPDATE"){
             throw std::invalid_argument("syntax error : expected 'UPDATE' ");
         }
-
         _pos++;
         auto update_query = std::make_unique<S_UPDATE_QUERY>();    //query object here!!!
 
@@ -393,13 +392,17 @@ class PARSER{
             }
         }
 
-        if(_token_vec[_pos].word == ";"){
-            throw std::invalid_argument("suntax error : expected ';' at the end of query ");
+        if(_token_vec[_pos].word != ")"){
+            throw std::invalid_argument("syntax error : expected ')' ");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].word != ";"){
+            throw std::invalid_argument("syntax error : expected ';' at the end of query ");
         }
         _pos++;
         query_ptr = std::move(update_query);
         std::cout<<"Update parse successful \n";
-
     }
 
     void delete_parse(){
@@ -407,33 +410,44 @@ class PARSER{
             throw std::invalid_argument("syntax error : expected 'DELETE' ");
         }
         _pos++;
-        S_DELETE_QUERY delete_query;        //query object here!!!
+        auto delete_query = std::make_unique<S_DELETE_QUERY>();        //delete query ptr here!!!
+
+        if(_token_vec[_pos].word != "INDEX"){
+            throw std::invalid_argument("syntax error : expected 'INDEX' after DELETE ");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].word != "="){
+            throw std::invalid_argument("syntax error : expected '=' after INDEX");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].tk_type != TOKENTYPE::NUMBER ){
+            throw std::invalid_argument("syntax error : expected index value");
+        }
+        delete_query->index_condition = std::stoi(_token_vec[_pos].word);
+        _pos++;
 
         if(_token_vec[_pos].word != "FROM"){
-            throw std::invalid_argument("syntax error : expected 'FROM' ");
+            throw std::invalid_argument("syntax error : expected 'FROM' after index value ");
         }
         _pos++;
 
-        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER ){
-            throw std::invalid_argument("syntax error : expected table name");
+        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+            throw std::invalid_argument("syntax error : expected tablename after 'FROM' ");
         }
-        delete_query.tablename = _token_vec[_pos].word;
+        delete_query->tablename = _token_vec[_pos].word;        
         _pos++;
 
-        
-        if (_token_vec[_pos].word == "WHERE"){
-            _pos++;
-            while(_token_vec[_pos].word != ";" && _pos< _token_vec.size()){
-                delete_query.condition += _token_vec[_pos].word;
-                delete_query.condition += " ";
-                _pos++;
-            }
+        if(_token_vec[_pos].word != ";" || _pos > _token_vec.size()){
+            throw std::invalid_argument("syntax error : expected ; at the end of query");
         }
-        else if(_token_vec[_pos].word == ";"){
-            _pos++;
-        }
+        _pos++;
+
+        query_ptr = std::move(delete_query);
         std::cout<<"DELETE query parsed \n";
     }
+
 };
 
 
@@ -574,7 +588,20 @@ class DATABASE{
         std::cout<<"Table "<<update_query.tablename<<" at index "<<index<<" has been updated successfully \n";
     }
 
-    void execute_delete(){}
+    void execute_delete(const S_DELETE_QUERY& delete_query){
+        if(tables.find(delete_query.tablename) == tables.end()){
+            std::cout<<"Table "<<delete_query.tablename<<" doesnt exist\n";
+            return;
+        }
+
+        if(delete_query.index_condition > tables.size() || delete_query.index_condition < 0){
+            std::cout<<"invalid index \n";
+            return;
+        }
+
+        TABLE& table_ref = tables[delete_query.tablename];
+        table_ref.rows.erase(table_ref.rows.begin() + delete_query.index_condition);
+    }
 
 };
 
@@ -606,7 +633,7 @@ class QUERY_ENGINE{
                 db.execute_update(*update_query);
             }
             if(S_DELETE_QUERY* delete_query = dynamic_cast<S_DELETE_QUERY*>(parsed_query.get())){
-                //db.execute_delete(*delete_query);
+                db.execute_delete(*delete_query);
             }
         }
     }
@@ -642,5 +669,7 @@ int main(){
         }
         
     }
+    return 0;
 }
+
 
