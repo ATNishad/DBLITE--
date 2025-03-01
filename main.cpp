@@ -38,18 +38,16 @@ struct S_CREATE_QUERY : public BASE_QUERY_S{
 struct S_DROP_QUERY : public BASE_QUERY_S{
 };
 
+struct S_DISPLAY_QUERY : public BASE_QUERY_S{
+};
+
 struct S_INSERT_QUERY : public BASE_QUERY_S{
     std::vector<std::string> values;
 };
 
-struct S_SELECT_QUERY : public BASE_QUERY_S{
-    std::vector<std::string> columns;
-    std::string condition;
-};
-
 struct S_UPDATE_QUERY : public BASE_QUERY_S{
-    std::unordered_map<std::string , std::string> updates;
-    std::string condition;
+    std::vector<std::string> values;
+    size_t index_condition;
 };
 
 struct S_DELETE_QUERY : public BASE_QUERY_S{
@@ -133,7 +131,7 @@ class PARSER{
             {"CREATE", std::bind(&PARSER::create_parse,this)},
             {"DROP"  , std::bind(&PARSER::drop_parse,this)},
             {"INSERT", std::bind(&PARSER::insert_parse,this)},
-            {"SELECT", std::bind(&PARSER::select_parse,this)},
+            {"DISPLAY", std::bind(&PARSER::display_parse,this)},
             {"UPDATE", std::bind(&PARSER::update_parse,this)},
             {"DELETE", std::bind(&PARSER::delete_parse,this)},
         };
@@ -148,7 +146,7 @@ class PARSER{
 
     }
 
-    //get parsed query function
+    //getter function to get parsed query (moves unique ptr)
     std::unique_ptr<BASE_QUERY_S> get_parsed_query(){
         return std::move(query_ptr);
     }
@@ -252,7 +250,36 @@ class PARSER{
         std::cout<<"Drop query parsed\n";
 
         }
-        
+    
+    void display_parse(){
+            if(_token_vec[_pos].word != "DISPLAY"){
+                throw std::invalid_argument("syntax error : expected 'SELECT' ");
+            }
+            auto display_query = std::make_unique<S_DISPLAY_QUERY>();  //query pointer here
+            _pos++;
+    
+            if(_token_vec[_pos].word != "TABLE"){
+                throw std::invalid_argument("syntax error : expected 'TABLE'");
+            }
+            _pos++;
+    
+            
+            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
+                throw std::invalid_argument("syntax error : expected table name ");
+            }
+            display_query->tablename = _token_vec[_pos].word;
+            _pos++;
+    
+            if(_token_vec[_pos].word != ";"){
+                throw std::invalid_argument("syntax error : expected ';' ");
+            }
+            _pos++;
+            query_ptr = std::move(display_query);
+            std::cout<<"DISLPAY PARSE SUCCESSFUL \n";
+            
+    
+        }    
+
     void insert_parse(){
         if(_token_vec[_pos].word != "INSERT"){
             throw std::invalid_argument("syntax error : expected 'INSERT' ");
@@ -270,11 +297,6 @@ class PARSER{
 
         }
         insert_query->tablename = _token_vec[_pos].word;
-        _pos++;
-
-        if(_token_vec[_pos].word != "VALUES"){
-            throw std::invalid_argument("syntax error : expected 'VALUES' ");
-        }
         _pos++;
 
         if(_token_vec[_pos].word != "("){
@@ -316,132 +338,67 @@ class PARSER{
         std::cout<<"INSERT PARSE SUCCESSFUL \n";
     }
      
-    void select_parse(){
-        if(_token_vec[_pos].word != "SELECT"){
-            throw std::invalid_argument("syntax error : expected 'SELECT' ");
-        }
-        auto select_query = std::make_unique<S_SELECT_QUERY>();  //query pointer here
-        _pos++;
-
-        if(_token_vec[_pos].word == "*"){
-            select_query->columns.push_back("*");
-            _pos++;
-        }
-        else{
-            while(_token_vec[_pos].tk_type == TOKENTYPE::IDENTIFIER){
-                select_query->columns.push_back(_token_vec[_pos].word);
-                _pos++;
-
-                if(_token_vec[_pos].word == ","){
-                    _pos++;
-                    continue;
-                }
-                else{
-                    break;
-                }
-            }
-        }
-        
-        if(_token_vec[_pos].word != "FROM"){
-            throw std::invalid_argument("syntax error : expected 'FROM' ");
-        }
-        _pos++;
-        
-        if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-            throw std::invalid_argument("syntax error : expected table name ");
-        }
-        select_query->tablename = _token_vec[_pos].word;
-        _pos++;
-
-        if(_token_vec[_pos].word == "WHERE"){
-            _pos++;
-
-            while(_pos < _token_vec.size() && _token_vec[_pos].word != ";"){
-                if(!select_query->condition.empty()){
-                    select_query->condition += " "; 
-                select_query->condition += _token_vec[_pos].word;
-                _pos++;
-            }
-        }
-        }
-
-        if(_token_vec[_pos].word != ";"){
-            throw std::invalid_argument("syntax error : expected ';' ");
-        }
-        _pos++;
-        query_ptr = std::move(select_query);
-        std::cout<<"SELECT PARSE SUCCESSFUL \n";
-        
-
-    }
-
     void update_parse(){
         if(_token_vec[_pos].word != "UPDATE"){
             throw std::invalid_argument("syntax error : expected 'UPDATE' ");
         }
 
         _pos++;
-        S_UPDATE_QUERY update_query;    //query object here!!!
+        auto update_query = std::make_unique<S_UPDATE_QUERY>();    //query object here!!!
 
         if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
             throw std::invalid_argument("syntax error : expected tablename");
         }
-        update_query.tablename = _token_vec[_pos].word;
+        update_query->tablename = _token_vec[_pos].word;
         _pos++;
 
-        if(_token_vec[_pos].word != "SET"){
+        if(_token_vec[_pos].word != "INDEX"){
             throw std::invalid_argument("syntax error : expected 'SET' ");
         }
         _pos++;
 
-        while(_pos < _token_vec.size() && _token_vec[_pos].word != "WHERE" && _token_vec[_pos].word != ";"){
-            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER){
-                throw std::invalid_argument("syntax error : expected column name");
-            }
-
-            std::string column = _token_vec[_pos].word;
-            _pos++;
-
-            if(_token_vec[_pos].word != "="){
-                throw std::invalid_argument("syntax error : expected =");
-            }
-            _pos++;
-
-            if(_token_vec[_pos].tk_type != TOKENTYPE::IDENTIFIER &&
-                 _token_vec[_pos].tk_type != TOKENTYPE::STRING &&
-                 _token_vec[_pos].tk_type != TOKENTYPE::NUMBER ){
-                     throw std::invalid_argument("syntax error : expected value after = ");
-                    }
-                    update_query.updates[column] = _token_vec[_pos].word;
-                    _pos++;
-                                    
-            if(_token_vec[_pos].word == ","){
-                _pos++;
-                continue;
-            }
-
-            else if(_token_vec[_pos].word == "WHERE" || _token_vec[_pos].word == ";"){
-                break;
-            }
-            else{
-                throw std::invalid_argument("syntax error : expected token in SET");
-            }
-        }
-
-        if(_token_vec[_pos].word == "WHERE"){
-            _pos++;
-            while(_pos< _token_vec.size() && _token_vec[_pos].word != ";"){
-                update_query.condition += _token_vec[_pos].word + " ";
-                _pos++;
-            }
-            update_query.condition = update_query.condition.substr(0,update_query.condition.size()-1);
-        }
-
-        if(_token_vec[_pos].word != ";"){
-            throw std::invalid_argument("syntax error : expected ';' at end");
+        if(_token_vec[_pos].word != "="){
+            throw std::invalid_argument("syntax error : expected '=' after INDEX");
         }
         _pos++;
-        std::cout<<"UPDATE PARSE SUCCESSFUL";
+
+        if(_token_vec[_pos].tk_type != TOKENTYPE::NUMBER){
+            throw std::invalid_argument("syntax error : expected index value after '=' ");
+        }
+        update_query->index_condition = std::stoi(_token_vec[_pos].word);
+        _pos++;
+
+        if(_token_vec[_pos].word != "SET"){
+            throw std::invalid_argument("syntax error : expected 'SET' after index value");
+        }
+        _pos++;
+
+        if(_token_vec[_pos].word != "("){
+            throw std::invalid_argument("syntax error : expected '(' after index value ");
+        }
+        _pos++;
+
+        while(_pos<_token_vec.size() && _token_vec[_pos].word != ")"){
+            if(_token_vec[_pos].tk_type == TOKENTYPE::IDENTIFIER ||
+               _token_vec[_pos].tk_type == TOKENTYPE::NUMBER || 
+               _token_vec[_pos].tk_type == TOKENTYPE::STRING){
+                update_query->values.push_back(_token_vec[_pos].word);
+                _pos++;
+               }
+            else if(_token_vec[_pos].word == ","){
+                _pos++;
+            }
+            else{
+                throw std::invalid_argument("syntax error :unexpected token in values");
+            }
+        }
+
+        if(_token_vec[_pos].word == ";"){
+            throw std::invalid_argument("suntax error : expected ';' at the end of query ");
+        }
+        _pos++;
+        query_ptr = std::move(update_query);
+        std::cout<<"Update parse successful \n";
 
     }
 
@@ -519,32 +476,13 @@ class DATABASE{
         
     }
 
-    void execute_insert(const S_INSERT_QUERY& insert_query){
-        if(tables.find(insert_query.tablename) == tables.end()){
-            std::cout<<"Table "<<insert_query.tablename<<" doesnt exist \n";
-            return;
-        }
-    
-        TABLE& table_ref = tables[insert_query.tablename];
-        if(insert_query.values.size() < table_ref.columns.size()){
-            std::cout<<"Error : expected "<<table_ref.columns.size() <<" but entered "<<insert_query.values.size()<<" values \n";
-            return;
-        }
-
-        std::unordered_map<std::string,std::string> new_row ;
-        for(size_t i = 0 ; i < table_ref.columns.size() ; ++i){
-            new_row[table_ref.columns[i]] = insert_query.values[i];
-        }
-        table_ref.rows.push_back(new_row);
-    }
-
-    void execute_select(const S_SELECT_QUERY& select_query){
-        if(tables.find(select_query.tablename) == tables.end()){
-            std::cout<<"Table "<<select_query.tablename<<" doesnt exist \n";
+    void execute_display(const S_DISPLAY_QUERY& display_query){
+        if(tables.find(display_query.tablename) == tables.end()){
+            std::cout<<"Table "<<display_query.tablename<<" doesnt exist \n";
             return;
         }
         
-        const TABLE& table_ref = tables[select_query.tablename];
+        const TABLE& table_ref = tables[display_query.tablename];
 
         std::vector<size_t> col_width(table_ref.columns.size(),0);
         for(size_t i = 0 ; i < table_ref.columns.size() ; ++i){
@@ -590,7 +528,51 @@ class DATABASE{
         std::cout << "\n";
     }
 
-    void execute_update(){}
+    void execute_insert(const S_INSERT_QUERY& insert_query){
+        if(tables.find(insert_query.tablename) == tables.end()){
+            std::cout<<"Table "<<insert_query.tablename<<" doesnt exist \n";
+            return;
+        }
+    
+        TABLE& table_ref = tables[insert_query.tablename];
+        if(insert_query.values.size() < table_ref.columns.size()){
+            std::cout<<"Error : expected "<<table_ref.columns.size() <<" values but entered "<<insert_query.values.size()<<" values \n";
+            return;
+        }
+
+        std::unordered_map<std::string,std::string> new_row ;
+        for(size_t i = 0 ; i < table_ref.columns.size() ; ++i){
+            new_row[table_ref.columns[i]] = insert_query.values[i];
+        }
+        table_ref.rows.push_back(new_row);
+        std::cout<<"New row added to table "<<insert_query.tablename<<"\n";
+    }
+
+    void execute_update(const S_UPDATE_QUERY& update_query){
+        if(tables.find(update_query.tablename) == tables.end()){
+            std::cout<<"Table "<<update_query.tablename<<" doesnt exist \n";
+            return;
+        }
+        
+        TABLE& table_ref = tables[update_query.tablename];
+        size_t index = update_query.index_condition;
+        if(index >= table_ref.rows.size()){
+            std::cout<<"Error : index "<<index<<" out of range \n";
+            return;
+        }
+
+        if(update_query.values.size() != table_ref.columns.size()){
+            std::cout<<"Error : expected "<<table_ref.columns.size()<<" values but entered "<<update_query.values.size()<<" values \n";
+            return;
+        }
+
+        std::unordered_map<std::string,std::string> updated_row;
+        for(size_t i = 0 ; i < table_ref.columns.size() ; ++i){
+            updated_row[table_ref.columns[i]] = update_query.values[i];
+        } 
+        table_ref.rows[index] = updated_row;
+        std::cout<<"Table "<<update_query.tablename<<" at index "<<index<<" has been updated successfully \n";
+    }
 
     void execute_delete(){}
 
@@ -614,14 +596,14 @@ class QUERY_ENGINE{
             if(S_DROP_QUERY* drop_query = dynamic_cast<S_DROP_QUERY*>(parsed_query.get())){
                 db.execute_drop(*drop_query);
             }
+            if(S_DISPLAY_QUERY* display_query = dynamic_cast<S_DISPLAY_QUERY*>(parsed_query.get())){
+                db.execute_display(*display_query);
+            }
             if(S_INSERT_QUERY* insert_query = dynamic_cast<S_INSERT_QUERY*>(parsed_query.get())){
                 db.execute_insert(*insert_query);
             }
-            if(S_SELECT_QUERY* select_query = dynamic_cast<S_SELECT_QUERY*>(parsed_query.get())){
-                db.execute_select(*select_query);
-            }
             if(S_UPDATE_QUERY* update_query = dynamic_cast<S_UPDATE_QUERY*>(parsed_query.get())){
-                //db.execute_update(*update_query);
+                db.execute_update(*update_query);
             }
             if(S_DELETE_QUERY* delete_query = dynamic_cast<S_DELETE_QUERY*>(parsed_query.get())){
                 //db.execute_delete(*delete_query);
