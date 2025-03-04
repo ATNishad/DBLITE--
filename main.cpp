@@ -7,8 +7,8 @@
 #include<memory>
 
 std::unordered_set<std::string> SQL_KEYWORD_SET= {
-    "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE",
-    "VALUES", "INTO", "CREATE", "DROP", "TABLE"
+    "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "SET",
+    "VALUES", "INTO", "CREATE", "DROP", "TABLE","INDEX"
 };
 
 
@@ -352,7 +352,7 @@ class PARSER{
         _pos++;
 
         if(_token_vec[_pos].word != "INDEX"){
-            throw std::invalid_argument("syntax error : expected 'SET' ");
+            throw std::invalid_argument("syntax error : expected 'INDEX' ");
         }
         _pos++;
 
@@ -508,26 +508,32 @@ class DATABASE{
             }
         }
 
+        std::cout<<" ";
         std::cout<<"+";
         for(size_t w : col_width){
             std::cout<<std::string(w+2,'-')<<"+";
         }
         std::cout<<"\n";
         
+        std::cout<<" ";
         std::cout<<"|";
         for(size_t i = 0 ; i < table_ref.columns.size(); ++i){
             std::cout<<" "<<table_ref.columns[i]<<std::string(col_width[i] - table_ref.columns[i].length() + 1,' ') << "|";
         }
         std::cout<<"\n";
 
+        std::cout<<" ";
         std::cout << "+";
         for(size_t w : col_width){
         std::cout<<std::string(w + 2,'-')<< "+";
         }
         std::cout<<"\n";
 
+        int ind = 0;
         for (const auto& row : table_ref.rows) {
-        std::cout << "|";
+        std::cout<<ind;
+        ind++;
+        std::cout<<"|";
         for (size_t i = 0; i < table_ref.columns.size(); ++i) {
             std::string val = row.count(table_ref.columns[i]) ? row.at(table_ref.columns[i]) : "";
             std::cout<< " " <<val <<std::string(col_width[i] - val.length() + 1,' ')<< "|";
@@ -535,11 +541,12 @@ class DATABASE{
         std::cout<<"\n";
         }
 
+        std::cout<<" ";
         std::cout << "+";
         for (size_t w : col_width) {
-        std::cout << std::string(w + 2, '-') << "+";
+        std::cout<<std::string(w + 2, '-')<<"+";
         }
-        std::cout << "\n";
+        std::cout<<"\n";
     }
 
     void execute_insert(const S_INSERT_QUERY& insert_query){
